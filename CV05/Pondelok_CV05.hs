@@ -10,6 +10,17 @@ module Pondelok_CV05 where
 -}
 
 import Terms
+{-
+-- kodovanie UTF-8 bez BOM (Notepad++)
+module Terms where
+ 
+-- identifikator premennej je String 
+type Var = String
+
+-- lambda termy
+data LExp = LAMBDA Var LExp | ID Var | APP LExp LExp  deriving(Eq)
+-}
+
 --- some useful stuff
 import Data.List 
 import Data.Char
@@ -17,8 +28,11 @@ import Data.Map (Map, insert, lookup, empty)
 import Data.Maybe
 
 -- defiujte instance Show LExp
--- instance Show LExp where
-  
+instance Show LExp where
+    show (LAMBDA v e) = '\\' : v ++ "->" ++ show e
+    show (ID v) = v
+    show (APP m n) = "(" ++ show m ++ " " ++ show n ++ ")"
+
 -- zopar pouzitelnych konstant
 
 izero = (LAMBDA "f" (LAMBDA "x" (ID "x")))
@@ -44,7 +58,9 @@ ieight =  (APP isucc (APP isucc (APP isucc (APP isucc (APP isucc (APP isucc (APP
 ----------------------------- jednoduchy stromove preliezky
 -- zoznam vsetkych premennych
 vars  :: LExp -> [Var]
-vars = undefined
+vars (ID v) = [v]
+vars (LAMBDA v m) = v:vars m 
+vars (APP m n) = (vars m) ++ (vars n)
 
 
 -- vars isucc = ["n","f","x","f","n","f","x"]
@@ -52,7 +68,10 @@ vars = undefined
 
 -- obsahuje beta redex, miesto, kde sa da aplikovat beta redukcia
 hasRedex :: LExp -> Bool
-hasRedex = undefined
+hasRedex (ID _) = False
+hasRedex (LAMBDA v m) = hasRedex m
+hasRedex (APP (LAMBDA v m) n) = True
+hasRedex (APP m n) = hasRedex m || hasRedex n
 
 -- hasRedex  i == False
 -- hasRedex  k == False
@@ -70,13 +89,14 @@ foldLambda lambda var apl (APP exp1 exp2)   = apl (foldLambda lambda var apl exp
                                                   (foldLambda lambda var apl exp2)
                                                   
 vars'  :: LExp -> [Var]                                                  
-vars' = undefined
+vars' e = foldLambda (\v -> \y -> v:y) (\v -> [v]) (\x -> \y -> x++y) e
 
 show' :: LExp -> String
-show' = undefined
+show' = foldLambda (\v -> \y -> '\\' : v ++ "->" ++ y) (\v -> v) 
+            (\m -> \n -> "(" ++ m ++ " " ++ n ++ ")")
 
 hasRedex' :: LExp -> Bool
-hasRedex' = undefined
+hasRedex' = foldLambda (\v -> \y -> y) (\v -> False) (\m n -> m || n)
 
 -- hasRedex'  i == False
 -- hasRedex'  k == False
@@ -85,8 +105,16 @@ hasRedex' = undefined
 -- hasRedex'  (APP (APP s k) k) == False  -whoops 
 --------------------------------- chcelo by to parser lambda termov, aspon primitivny
 
-fromString  :: Var -> (LExp, Var)
-fromString (x:xs) = undefined
+-- premenne su 1pismenkove
+
+fromString  :: String -> (LExp, String)
+fromString (x:xs) | isAlpha x  = (ID [x], xs)
+                  | x == '\\'  = let  (e, rest) = fromString (drop 3 xs)
+                                 in (LAMBDA [head xs] e, rest)
+                  | x == '('   = let (m, rest) = fromString xs
+                                     (n, rest1) = fromString (tail rest)
+                                 in (APP m n, tail rest1)   
+                  | otherwise = error ("syntax: " ++ xs)               
 
 {- vieme citat po sebe
 fromString $ show izero     (\f->\x->x,"")
@@ -98,7 +126,8 @@ fromString $ show isucc     (\n->\f->\x->(f ((n f) x)),"")
 -- pozor, readsPrec ocakava nedeterministicky parser, takze ten nas musime dokalicit na zoznam, alebo ten nas prepisat aby vracal zoznam [(LExp, Var)]
 
 -- definujme instance Read pre LExp
--- instance Read LExp where
+instance Read LExp where
+    readsPrec _ input = [fromString input]
 
 -- read "(\n->\f->\x->(f ((n f) x))"
 
@@ -111,32 +140,48 @@ fromString $ show isucc     (\n->\f->\x->(f ((n f) x)),"")
 
 -- najst vsetky podtermy termu priamociaro
 podtermy :: LExp -> [LExp]
-podtermy =  undefined
+podtermy t = nub $ podtermy' t
+    where 
+    podtermy' t@(ID _) = [t]
+    podtermy' t@(APP m n) = t : (podtermy' m ++ podtermy' n)
+    podtermy' t@(LAMBDA v m) = t : podtermy' m
 
 
 -- podtermy (LAMBDA "x" (APP (ID "x") (ID "x"))) = [\x->(x x),(x x),x]
 
 -- toto vlastne robi deriving class Eq
+{-
 rovnake :: LExp -> LExp -> Bool
-rovnake = undefined
+rovnake (LAMBDA v1 e1) (LAMBDA v2 e2)  =  v1 == v2 && rovnake e1 e2
+rovnake (ID v1) (ID v2)  =  v1 == v2 
+rovnake (APP m1 n1) (APP m2 n2)  =  rovnake m1 n1 && rovnake m2 n2
+rovnake _ _ = False
+-}
 
 --------------------------------------------
 -- type Maybe t = Just t | Nothing
 maxim :: Ord t => [t] -> Maybe t
-maxim xs = undefined
+maxim xs = if null xs then Nothing else Just (maximum xs)
+
 minim :: Ord t => [t] -> Maybe t
-minim xs = undefined
+minim xs = if null xs then Nothing else Just$minimum xs
 
 rozdielMaxMin :: (Num t, Ord t) => [t] -> Maybe t
-rozdielMaxMin xs = undefined
-
+rozdielMaxMin xs = let maxi = maxim xs
+                       mini = minim xs 
+                   in if isJust maxi && isJust mini then
+                         Just (fromJust maxi - fromJust mini)
+                      else Nothing
+                      
 -- rozdielMaxMin [5,3,1,8,6,4,2] == Just 7
 -- rozdielMaxMin [] == Nothing
 
 -- Maybe Monad style
 rozdielMaxMin' :: (Num t, Ord t) => [t] -> Maybe t
-rozdielMaxMin' xs = undefined
-
+rozdielMaxMin' xs = do maxi <- maxim xs
+                       mini <- minim xs
+                       return (maxi-mini)
+                      
 -- rozdielMaxMin' [5,3,1,8,6,4,2] == Just 7
 -- rozdielMaxMin' [] == Nothing
 
@@ -149,12 +194,22 @@ rozdielMaxMin' xs = undefined
 -- treba sa zamysliet, preco potrebujeme odlisit Just [] od Nothing
 -- lebo (ID "x") (ID "x") bude Just [], (ID "x") (ID "y") bude Just [("x","y")]
 -- ale (ID "x") (LAMBDA "x" (ID "x")) bude Nothing
+
 podobne :: LExp -> LExp -> Maybe [(Var, Var)]
 podobne (LAMBDA v1 e1) (LAMBDA v2 e2) = 
-               undefined
-podobne (ID v1) (ID v2) = undefined
-podobne (APP e11 e21) (APP e12 e22) = 
-                undefined
+               do lst <- podobne e1 e2
+                  if v1 == v2 then
+                     return lst
+                  else
+                     return ((v1,v2):lst)
+                     
+podobne (ID v1) (ID v2) = return $ if v1 == v2 then [] else [(v1,v2)]
+                     
+podobne (APP m1 n1) (APP m2 n2) = 
+            do  lst1 <- podobne m1 m2
+                lst2 <- podobne n1 n2
+                Just (lst1 ++ lst2)
+                
 podobne _ _ = Nothing
 
 -- podobne (ID "x") (ID "x") == Just []
@@ -191,11 +246,16 @@ podobne' _ _ = Nothing
 type Substitution = Map Var Var
 podobne'' :: LExp -> LExp -> Substitution -> Maybe Substitution
 podobne'' (LAMBDA v1 e1) (LAMBDA v2 e2) subst = 
-                undefined
+                do subst1 <- podobne'' e1 e2 subst
+                   if v1 == v2 then
+                      return subst1
+                   else 
+                     return (Data.Map.insert v1 v2 subst)
 podobne'' (ID v1) (ID v2) subst = 
-                undefined
-podobne'' (APP e11 e21) (APP e12 e22) subst = 
-                undefined
+                return $ if v1 == v2 then subst else (Data.Map.insert v1 v2 subst)
+podobne'' (APP m1 n1) (APP m2 n2) subst = 
+                do subst1 <- podobne'' m1 m2 subst
+                   podobne'' n1 n2 subst1
 podobne'' _ _ _ = Nothing
 
 -- podobne'' (ID "x") (ID "x") empty == Just (fromList [])
