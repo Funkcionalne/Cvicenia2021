@@ -1,0 +1,137 @@
+module Priprava_CV07 where
+
+import Terms
+import TermsDB
+--- some useful stuff
+import Data.List 
+import Data.Char
+import Data.Map (Map, insert, lookup, empty, size)
+import Data.Maybe
+
+------------------------------------
+type Indexes = Map String Int
+
+{-
+toDB :: LExp -> LExpDB
+toDB term = toDB' 0 term empty
+
+toDB' :: Int -> LExp -> Indexes -> LExpDB
+toDB' depth (ID v) m = let vi = Data.Map.lookup v m
+                       in if isJust vi then -- bound variable
+                             IDDB (depth - fromJust vi -1)
+                          else   -- free variable :( ostalo na DU
+                             undefined
+toDB' depth (LAMBDA v lexp) m = LAMBDADB $ toDB' (depth+1) lexp (Data.Map.insert v depth m)
+toDB' depth (APP e1 e2) m = APPDB (toDB' depth e1 m) (toDB' depth e2 m)
+-}                                    
+toDB :: LExp -> LExpDB
+toDB term = fst $ toDB' (maxDepth term) 0 term empty empty
+
+maxDepth :: LExp -> Int
+maxDepth (ID _) = 0
+maxDepth (APP e1 e2) = max (maxDepth e1) (maxDepth e2) 
+maxDepth (LAMBDA _ exp) = 1+(maxDepth exp)
+
+
+
+toDB' :: Int -> Int -> LExp -> Indexes -> Indexes -> (LExpDB, Indexes)
+toDB' md depth (ID v) m g  =  let vi = Data.Map.lookup v m
+                              in if isJust vi then -- bound variable
+                                 (IDDB (depth - fromJust vi -1), g)
+                              else 
+                                 let vi = Data.Map.lookup v g
+                                 in
+                                     if isJust vi then         
+                                        (IDDB (fromJust vi), g)
+                                     else   
+                                       let newI = md + size g
+                                       in (IDDB newI, Data.Map.insert v newI g)
+toDB' md depth (LAMBDA v lexp) m g = let (exp, g') = toDB' md (depth+1) lexp (Data.Map.insert v depth m) g
+                                     in  (LAMBDADB exp, g')
+toDB' md depth (APP e1 e2) m g = let (exp1, g')  = toDB' md depth e1 m g
+                                     (exp2, g'') = toDB' md depth e2 m g'
+                                 in (APPDB exp1 exp2, g'')
+{-           
+toDB i = \0
+toDB k = \\1
+toDB s = \\\((2 0) (1 0))
+-- λz. ((λy. y (λx. x)) (λx. z x))
+toDB foo = \(\(0 \0) \(1 0))
+-- (λx.λy.((z x) (λu.(u x)))) (λx.(w x))         
+toDB goo = (\\((3 1) \(0 2)) \(4 0))
+-- λx.λy.y (λz.z x) x
+toDB hoo = \\((0 \(0 2)) 1)
+-- λx.(λx.x x) (λy.y (λz.x))
+toDB ioo = \(\(0 0) \(0 \2))
+-}                                    
+------------------------------
+
+{-
+fromDB :: LExpDB -> LExp
+fromDB term = fromDB' term []
+
+fromDB' :: LExpDB -> [String] -> LExp
+fromDB' (APPDB e1 e2) m = (APP (fromDB' e1 m) (fromDB' e2 m))
+fromDB' (IDDB index) m = (ID (m!!index))
+fromDB' (LAMBDADB exp) m = let var = [chr(ord 'x'+length m)]
+                           in (LAMBDA var (fromDB' exp (var:m)))
+-}
+
+fromDB :: LExpDB -> LExp
+fromDB term = fromDB' term []
+
+fromDB' :: LExpDB -> [String] -> LExp
+fromDB' (APPDB e1 e2) m = (APP (fromDB' e1 m) (fromDB' e2 m))
+fromDB' (IDDB index) m = if (index < length m) then (ID (m!!index))
+                         else (ID [chr(ord 'a'+index)])
+fromDB' (LAMBDADB exp) m = let var = [chr(ord 'u'+length m)]
+                           in
+                            (LAMBDA var (fromDB' exp (var:m)))
+
+-----------------------------------
+{-
+fromDB $ toDB i
+\x->x
+fromDB $ toDB k
+\x->\y->x
+fromDB $ toDB s
+\x->\y->\z->((x z) (y z))
+fromDB $ toDB foo
+\x->(\y->(y \z->z) \y->(x y))
+fromDB $ toDB goo
+(\x->\y->((*** Exception: Prelude.undefined
+-}
+---------------------------------------                         
+
+subst :: LExpDB -> SubstDB -> LExpDB
+subst (IDDB index) sub = sub!!index
+subst (APPDB e1 e2) sub = (APPDB (subst e1 sub) (subst e2 sub))
+subst (LAMBDADB exp) sub = (LAMBDADB $ subst exp (IDDB 0:map incr sub))
+
+maxDepthDB :: LExpDB -> Int
+maxDepthDB (IDDB _) = 0
+maxDepthDB (APPDB e1 e2) = max (maxDepthDB e1) (maxDepthDB e2) 
+maxDepthDB (LAMBDADB exp) = 1+(maxDepthDB exp)
+
+incr :: LExpDB -> LExpDB
+incr t = incr' 0 t
+            where md = maxDepthDB t
+                  incr' depth t@(IDDB index) = if index >= md then IDDB (index+1) else t
+                  incr' depth (APPDB e1 e2) = (APPDB (incr' depth e1) (incr' depth e2))
+                  incr' depth (LAMBDADB exp) = (LAMBDADB (incr' (depth+1) exp))
+        
+
+beta :: LExpDB -> LExpDB -> LExpDB
+beta (LAMBDADB m) n = subst m (n:(map (\i -> IDDB i) [0..]))
+
+oneStep :: LExpDB -> LExpDB
+oneStep (APPDB (LAMBDADB m) n) = beta (LAMBDADB (oneStep m)) (oneStep n)
+oneStep (APPDB m n) = (APPDB (oneStep m) (oneStep n)) 
+oneStep (LAMBDADB e) = LAMBDADB (oneStep e)
+oneStep t@(IDDB i) = t
+
+nf :: LExpDB -> LExpDB
+nf t = if t == t' then t else nf t' where t' = oneStep t 
+
+---------------------------------------
+                         

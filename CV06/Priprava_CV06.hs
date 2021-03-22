@@ -29,7 +29,6 @@ apply'''  = i
 
 -- Church's numeral  
 -- ?fx.x
--- \f.\x.x
 zero  = k i  
 -- ?fx.(f x)
 -- one  
@@ -55,8 +54,15 @@ incr' n = \f -> \x -> f (n f x)
 add = \m -> \n -> \f -> \x -> m f (n f x)     
 add' m n = \f -> \x -> m f (n f x)     
   
+  
+class <E>Pair(E e, int prio)  
+  Pair<E>[] front
+  
+E[] hodnoty
+int[] priority  
+  
+  
 add'' m n = m incr n
-add''' m n = n incr m
   
 -- m*n  
 mult = \m -> \n -> \f -> \x -> m (n f) x  
@@ -72,9 +78,6 @@ false x y = y
 ch_and x y   = x y false
 ch_or x y    = x true y
 ch_not x     = x false true
-
-
-ch_xor' a b = a (b false true) b
 
 ch_xor x y   = x (ch_not y) y
 --ch_xor x y   = ch_or (ch_and x (ch_not y)) (ch_and y (ch_not x))
@@ -133,8 +136,6 @@ decr n =
     zero
     
 ifte  c t e = c t e
-
--- y = .....
     
 fact :: (forall a. (a->a)->a->a) -> (a->a) -> a -> a        
 fact n  =
