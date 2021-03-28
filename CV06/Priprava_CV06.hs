@@ -6,6 +6,12 @@ import Text.Show.Functions
 
 -- zdroj http://techtipshoge.blogspot.sk/2011/06/church-number-with-ski-combinators.html
 -- http://www.angelfire.com/tx4/cus/combinator/birds.html
+-- zdroj http://techtipshoge.blogspot.sk/2011/06/church-number-with-ski-combinators.html
+-- http://www.angelfire.com/tx4/cus/combinator/birds.html
+-- http://dkeenan.com/Lambda/
+-- https://books.google.sk/books/about/To_Mock_a_Mockingbird.html?id=wklinRKAIgQC&redir_esc=y
+
+-- https://play.google.com/books/reader?id=NyF1kvJhZbAC&hl=sk&pg=GBS.PT171
 
 -- ?x.x  
 i = \x -> x
