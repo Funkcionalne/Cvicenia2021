@@ -3,7 +3,7 @@ module Parser
     failp, succeed, epsilon,
     satisfy, symbol, token, digit,
     option, many, many1,
-    determ, compulsion, greedy, greedy1,
+    determ, compulsion, greedy, greedy1, parens,
     pack, listOf, chainl, chainr, Parser.sequence, choice, integer, natural,
     just, some, expr,
     Parser

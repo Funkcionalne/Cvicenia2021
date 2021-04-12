@@ -7,13 +7,17 @@ import Terms -- pre domacu ulohu 1/8
 import Parser
 
 -- CV.1
-symbol' a = undefined
+symbol' a = satisfy (== a)
 
 -- CV.2
-digit10 = undefined
+digit10 = satisfy isDigit
 
 -- CV.3
-hexa = undefined
+hexa = satisfy (\x -> elem x "0123456789ABCDEF")
+
+-- a++b
+-- a++(b++c)
+--(a++b)++c
 
 -- CV.4 
 rep n a = replicate n a
@@ -24,9 +28,9 @@ e2 = length $ ((rep dost 1) ++ (rep dost 2)) ++ (rep dost 3)  -- left (46.26 sec
 -- lebo zlozitost (++) je umerna dlzke prveho argumentu
 
 -- cv.5
-yes = undefined
-no = undefined
-yesno = undefined
+yes = token "YES"
+no = token "NO"
+yesno = yes <|> no
 
 --no' = symbol 'N' <*> symbol 'O' <*> succeed "NO"
 -- yes' = symbol 'Y' <*> symbol 'E' <*> symbol 'S' <*> succeed "YES"
@@ -38,22 +42,30 @@ yesno' = yes' <|> no'
 yesno'' = just yesno
 
 -- cv.6
-just' p xs = undefined
+just' p xs = [ ([], v) | (ys, v) <- p xs, null ys]
 
 -- cv 7.
 infixr 6 <:**>
 (<:**>) :: Parser s a -> Parser s [a] -> Parser s [a]
-p <:**> q = undefined
+--p <:**> q = p <*> q <@ (\x -> (fst x) : (snd x))
+-- p <:**> q = p <*> q <@ (\(x,ys) -> x : ys)
+-- p <:**> q = p <*> q <@ uncurry (:)
+(p <:**> q ) xs = [ (ys, z:zs) | (xs2, z) <- p xs, (ys, zs) <-q xs2]
 
 --cv 8.
-sequence' (x:xs) = undefined
+sequence' [] = succeed []
+sequence' (p:ps) = p <:*> sequence' ps
 
 --cv 8'.
-token' ts = undefined
+token' ts = sequence (map symbol ts)
 
 --cv 9.
 mobileNumber  :: Parser Char [Char]
-mobileNumber = undefined
+mobileNumber = just $ sequence ([symbol '0', symbol '9'] ++ (replicate 8 digit10))
+
+month'' = symbol '0' <*> digit10
+        <|>
+        symbol '1' <*> (symbol '0' <|> symbol '1' <|> symbol '2')
 
 psc  :: Parser Char [Char]
 psc = undefined
@@ -93,7 +105,7 @@ day'' = sequence' [ choice [symbol '0' , symbol '1' , symbol '2' ], digit10]
 
 -- cv. 11         
 natural'  :: Parser Char Int
-natural' = undefined
+natural' = (greedy1 digit) <@ foldr (\y -> \x -> 10*x+y) 0 . reverse
 
 -- cv. 12
 -- desatinna cast
@@ -115,9 +127,7 @@ fixed = (natural <@ fromIntegral)
          
 
 parserV :: Parser Char [Char]
-parserV = ( symbol 'a' *> parserV <* symbol 'a' ) <@ (\x -> ('a':(x ++ "a")))
-          <|>
-          succeed []
+parserV = undefined
                           
 justparserV :: Parser Char [Char]
 justparserV = just $ parserV
@@ -128,12 +138,12 @@ parserS :: Parser Char [Char]
 parserS = ( parserS <*> parserS ) <@ (\(x,y) -> (x++y))
           <|>
           succeed []
+          
+S -> a S | epsilon          
 ---}
 
 parserS :: Parser Char [Char]
-parserS = ( symbol 'a' <*> parserS ) <@ (\(x,y) -> (x : y))
-          <|>
-          succeed []
+parserS = undefined
 
           
 justparserS :: Parser Char [Char]
@@ -142,15 +152,15 @@ justparserS = just $ parserS
 --------------------
                 
 parserR :: Parser Char [Char]
-parserR = (
-            symbol 'a' <*> parserR <*> symbol 'a'
+parserR =   (symbol 'a' <*> parserR <*> symbol 'a'
             <|>
             symbol 'b' <*> parserR <*> symbol 'b'
             <|>
-            symbol 'c' <*> parserR <*> symbol 'c'
-        ) <@ (\(x, (y,z)) -> (x:(y ++ [z])))
-          <|>
-          succeed []
+            symbol 'c' <*> parserR <*> symbol 'c') <@ (\(x,(y,z)) -> x:(y++[z]))
+            <|>
+            succeed []
+            
+-- pocet(a) w = pocet(b) w            
                           
 justparserR :: Parser Char [Char]
 justparserR = just $ parserR
@@ -158,6 +168,14 @@ justparserR = just $ parserR
 ----------------------------
                           
 parserU :: Parser Char [Char]                          
+
+parserU =  ( symbol 'a' <*> parserU <*>  symbol 'b' <*>  parserU) <@ (\(a, (bs, (c, ds))) -> (a:bs)++(c:ds))
+            <|> 
+           ( symbol 'b' <*> parserU <*>  symbol 'a' <*>  parserU) <@ (\(a, (bs, (c, ds))) -> (a:bs)++(c:ds))
+           <|> 
+           succeed []
+
+
 {-
 parserU =  sequence [symbol 'a', parserU, symbol 'b', parserU] 
             <|> 
@@ -166,11 +184,6 @@ parserU =  sequence [symbol 'a', parserU, symbol 'b', parserU]
            succeed []
 -}
 
-parserU =  ( symbol 'a' <*> parserU <*>  symbol 'b' <*>  parserU) <@ (\(a, (bs, (c, ds))) -> (a:bs)++(c:ds))
-            <|> 
-           ( symbol 'b' <*> parserU <*>  symbol 'a' <*>  parserU) <@ (\(a, (bs, (c, ds))) -> (a:bs)++(c:ds))
-           <|> 
-           succeed []
            
 {-
 (just parserU) "aabb"
